@@ -7,16 +7,16 @@ This library is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public
 License as published by the Free Software Foundation; either
 version 2.1 of the License, or (at your option) any later version.
- 
+
 This licence is there: http://www.gnu.org/licenses/lgpl-3.0.txt.
- 
+
 This library is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS /FOR A PARTICULAR PURPOSE.  See the GNU
 Lesser General Public License for more details.
- 
+
 * * * * * * * * * * * * */
-    
+
 /**
 * @author       GG Network S.A.
 * @copyright    Copyright © 2010, GG Network S.A.
@@ -27,7 +27,7 @@ class GGAPI
     /**
     * @desc Wersja
     */
-    const VERSION = '0.9';
+    const VERSION = '1.0';
 
     protected $auth = array(
         'oauth'     => 'https://auth.api.gg.pl/token',
@@ -37,6 +37,7 @@ class GGAPI
     protected $scopes = array(
         'pubdir' => 'https://pubdir.api.gg.pl',
         'users'  => 'https://users.api.gg.pl',
+        'life'   => 'https://life.api.gg.pl',
     );
 
     /**
@@ -81,7 +82,7 @@ class GGAPI
     private $refresh_token = null;
     /**
      * @desc Inicjalizacja
-     * 
+     *
      * @param string $client_id
      * @param string $client_secret
      */
@@ -96,7 +97,7 @@ class GGAPI
      * @return void
      */
     public function initSession(){
-        
+
         if(isset($_GET['gg_session_id'])){
             session_id($_GET['gg_session_id']);
         }
@@ -129,7 +130,45 @@ class GGAPI
 
         return $this->doRequest('GET', $this->scopes['pubdir'].'/users/'.$this->getUser($user), null, array($this->getAuthHeader()));
     }
+    /**
+     * @desc Wyślij notyfikację
+     *
+     * @return array
+     */
+    public function sendNotification($message, $link, $to = 'friends'){
 
+        $params = array(
+            'message' => $message,
+            'link'    => $link,
+            'to'      => $this->getUser($to)
+        );
+
+        return $this->doRequest('POST', $this->scopes['life'].'/notification', $params, array($this->getAuthHeader()));
+    }
+    /**
+     * @desc Dodaj wpis na pulpicie
+     *
+     * @return array
+     */
+    public function sendEvent($message, $link, $image){
+
+        $params = array(
+            'message' => $message,
+            'link'    => $link,
+            'image'   => $image
+        );
+
+        return $this->doRequest('POST', $this->scopes['life'].'/event', $params, array($this->getAuthHeader()));
+    }
+    /**
+     * @desc Pobiera link do awatara użytkownika
+     *
+     * @return string
+     */
+    public function getAvatarUrl($user){
+
+        return "http://avatars.gg.pl/{$user}";
+    }
 
     // -------------------------------------------------------------------
     // Metody wewnętrzne
@@ -149,7 +188,7 @@ class GGAPI
      * @return void
      */
     public function authorize($scopes, $response_type = 'code'){
-        
+
         $diff = array_diff($scopes, array_keys($this->scopes));
 
         if(count($diff)){
@@ -162,7 +201,7 @@ class GGAPI
             'scope'         => join(' ', $scopes),
             'redirect_uri'  => $this->getURI()
         );
-        
+
         $url = $this->auth['authorize'].'?'.http_build_query($params);
 
         header('Location: '.$url);
@@ -225,6 +264,9 @@ class GGAPI
      * @return string
      */
     protected function getUser($user = null){
+
+        if($user === 'friends')
+            return $user;
 
         return $user === null ? 'me' : 'user,'.$user;
     }
@@ -469,7 +511,7 @@ class GGAPI
      * @return string
      */
     private function getErrorMsg($parsedResponse){
-        
+
         return isset($parsedResponse['error']) ? $parsedResponse['error'] : @$parsedResponse['result']['errorMsg'];
     }
     /**

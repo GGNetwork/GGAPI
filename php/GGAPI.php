@@ -341,7 +341,7 @@ class GGAPI
 
         $ch = curl_init();
         if(($method == 'POST' || $method == 'PUT')){
-            $simpleParams = http_build_query((array)$params, null, '&');
+            $simpleParams = http_build_query((array)$params, null);
             curl_setopt($ch,CURLOPT_POSTFIELDS, !preg_match('/=%40/', $simpleParams) ? $simpleParams : $params);
         }
         if($method != 'POST') {
@@ -355,13 +355,12 @@ class GGAPI
                                                                             'User-Agent: GGAPIPHP v'.self::VERSION.' '.php_uname('n'),
                                                                             'Accept-Charset: ISO-8859-2,utf-8;q=0.7,*;q=0.7'
                                                                          )));
-        curl_setopt($ch,CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch,CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch,CURLOPT_HEADER, true);
         curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, true);
-        curl_setopt($ch,CURLOPT_MAXREDIRS, 3);
         curl_setopt($ch,CURLOPT_TIMEOUT, $this->requestTimeout);
-        curl_setopt($ch,CURLOPT_ENCODING, 'gzip');
+        if(defined('CURLOPT_ENCODING'))
+            curl_setopt($ch,CURLOPT_ENCODING, 'gzip');
 
         $this->lastHeaders  = array();
         $this->response     = curl_exec($ch);
@@ -572,6 +571,13 @@ class GGAPI
           return (string)$sxml;
         }
     }
+}
+
+if(!function_exists('curl_init')){
+    throw new GGAPIException('No CURL extension.');
+}
+if(!function_exists('json_decode')){
+    throw new GGAPIException('No JSON extension.');
 }
 
 class GGAPIException extends Exception{

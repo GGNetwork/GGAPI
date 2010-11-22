@@ -165,9 +165,9 @@ class GGAPI
      *
      * @return string
      */
-    public function getAvatarUrl($user){
+    public function getAvatarUrl($user, $default = null){
 
-        return "http://avatars.gg.pl/{$user}";
+        return "http://avatars.gg.pl/{$user}".($default ? '?default='.$default : '');
     }
 
     // -------------------------------------------------------------------

@@ -30,7 +30,7 @@ require_once 'lang.php';
 <div class="box_normal">
 <?php
 try{
-    $friend = $gg->getProfile($GET['id']);
+    $friend = $gg->getProfile($_GET['id']);
     $birthday = strtotime($friend['result']['users'][0]['birth']);
     if(!$birthday)
         die('Znajomy nie ustawił daty urodzin w katalogu publicznym.');

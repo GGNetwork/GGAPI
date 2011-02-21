@@ -276,7 +276,12 @@ class GGAPI
      * @return string
      */
     protected function getURI(){
-        return (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 'https://': 'http://').$_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+        if(empty($_SERVER['REQUEST_URI'])) {
+            $requri = '/';
+        } else {
+            $requri = $_SERVER['REQUEST_URI'];
+        }
+        return (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 'https://': 'http://').$_SERVER['HTTP_HOST'] . $requri;
     }
 
     /**
@@ -357,7 +362,11 @@ class GGAPI
                                                                          )));
         curl_setopt($ch,CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch,CURLOPT_HEADER, true);
-        curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, true);
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, false);
+        } else {
+            curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, true);
+        }
         curl_setopt($ch,CURLOPT_TIMEOUT, $this->requestTimeout);
         if(defined('CURLOPT_ENCODING'))
             curl_setopt($ch,CURLOPT_ENCODING, 'gzip');

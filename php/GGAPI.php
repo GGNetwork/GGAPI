@@ -19,7 +19,7 @@ Lesser General Public License for more details.
 
 /**
 * @author       GG Network S.A.
-* @copyright    Copyright © 2010, GG Network S.A.
+* @copyright    Copyright © 2012, GG Network S.A.
 * @license      Licenced for use under the LGPL. See http://www.gnu.org/licenses/lgpl-3.0.txt
 */
 class GGAPI
@@ -27,17 +27,21 @@ class GGAPI
     /**
     * @desc Wersja
     */
-    const VERSION = '1.0';
+    const VERSION = '2.0';
 
     protected $auth = array(
         'oauth'     => 'https://auth.api.gg.pl/token',
-        'authorize' => 'https://www.gg.pl/authorize',
+        'authorize' => 'https://login.gg.pl/authorize',
     );
 
     protected $scopes = array(
-        'pubdir' => 'https://pubdir.api.gg.pl',
-        'users'  => 'https://users.api.gg.pl',
-        'life'   => 'https://life.api.gg.pl',
+        'pubdir'  => 'https://pubdir.api.gg.pl',
+        'users'   => 'https://users.api.gg.pl',
+        'life'    => 'https://life.api.gg.pl',
+        'notify'  => 'https://notifications.api.gg.pl',
+        'geo'     => 'https://geo.api.gg.pl',
+        'storage' => 'https://storage.api.gg.pl',
+        'avatars' => 'http://avatars.api.gg.pl',
     );
 
     /**
@@ -96,9 +100,12 @@ class GGAPI
      *
      * @return void
      */
-    public function initSession(){
+    public function initSession($sessionId = null){
 
-        if(isset($_GET['gg_session_id'])){
+        if($sessionId !== null){
+            session_id($sessionId);
+        }
+        elseif(isset($_GET['gg_session_id'])){
             session_id($_GET['gg_session_id']);
         }
         session_start();
@@ -135,18 +142,19 @@ class GGAPI
      *
      * @return array
      */
-    public function sendNotification($message, $link, $to = 'friends'){
+    public function sendNotification($message, $uri, $expiresAt = null){
 
         $params = array(
-            'message' => $message,
-            'link'    => $link,
-            'to'      => $this->getUser($to)
+            'body'          => $message,
+            'uri'           => $uri,
+            'appFilter'     => 'notify',
+            'expiresAt'     => $expiresAt === null ? time() + 2592000 : $expiresAt,
         );
 
-        return $this->doRequest('POST', $this->scopes['life'].'/notification', $params, array($this->getAuthHeader()));
+        return $this->doRequest('POST', $this->scopes['notify'].'/notifications', $params, array($this->getAuthHeader()));
     }
     /**
-     * @desc Dodaj wpis na pulpicie
+     * @desc Dodaj wpis na strefę
      *
      * @return array
      */
@@ -155,11 +163,60 @@ class GGAPI
         $params = array(
             'message' => $message,
             'link'    => $link,
-            'image'   => $image
+            'image'   => $image,
         );
 
         return $this->doRequest('POST', $this->scopes['life'].'/event', $params, array($this->getAuthHeader()));
     }
+    /**
+     * @desc Pobierz lokalizację po IP
+     *
+     * @return array
+     */
+    public function getUserLocation($user, $ip = null){
+
+        $params = array();
+        if($ip){
+           $params['ip'] = $ip; 
+        }
+        
+        return $this->doRequest('GET', $this->scopes['geo'].'/'.$this->getUser($user).'/location', $params, array($this->getAuthHeader()));
+    }
+    /**
+     * @desc Zapisz klucz w bazie aplikacji
+     *
+     * @return array
+     */
+    public function setUserValue($user, $key, $value, $contentType = 'application/json'){
+        
+        $params = array(
+            'content_type'  => $contentType,
+            'value'         => json_encode($value),
+        );
+
+        return $this->doRequest('POST', $this->scopes['storage'].'/'.$this->getApp().'/'.$this->getUser($user).'/'.$key, $params, array($this->getAuthHeader()));
+    }   
+
+    /**
+     * @desc Pobierz klucz z bazy aplikacji
+     *
+     * @return array
+     */
+    public function getUserValue($user, $key){
+
+        return $this->doRequest('GET', $this->scopes['storage'].'/'.$this->getApp().'/'.$this->getUser($user).'/'.$key, null, array($this->getAuthHeader()));
+    }
+    /**
+     * @desc Skasuj klucz z bazy aplikacji
+     *
+     * @return array
+     */
+    public function deleteUserValue($user, $key){
+
+        return $this->doRequest('DELETE', $this->scopes['storage'].'/'.$this->getApp().'/'.$this->getUser($user).'/'.$key, null, array($this->getAuthHeader()));
+    }
+
+
     /**
      * @desc Pobiera link do awatara użytkownika
      *
@@ -167,9 +224,8 @@ class GGAPI
      */
     public function getAvatarUrl($user, $default = null){
 
-        return "http://avatars.api.gg.pl/files/clientId,{$this->client_id}/user,{$user}/".($default ? '?default='.$default : '');
+        return $this->scopes['avatars']."/files/clientId,{$this->client_id}/user,{$user}/".($default ? '?default='.$default : '');
     }
-
     // -------------------------------------------------------------------
     // Metody wewnętrzne
     // -------------------------------------------------------------------
@@ -187,19 +243,19 @@ class GGAPI
      *
      * @return void
      */
-    public function authorize($scopes, $response_type = 'code'){
+    public function authorize($scopes, $uri = null){
 
         $diff = array_diff($scopes, array_keys($this->scopes));
 
         if(count($diff)){
             throw new GGAPIException('Incorrect scope: '.join(' ', $diff));
         }
-
+        
         $params = array(
-            'response_type' => $response_type,
+            'response_type' => 'code',
             'client_id'     => $this->client_id,
             'scope'         => join(' ', $scopes),
-            'redirect_uri'  => $this->getURI()
+            'redirect_uri'  => $uri == null ? $this->getURI() : $uri
         );
 
         $url = $this->auth['authorize'].'?'.http_build_query($params);
@@ -228,6 +284,19 @@ class GGAPI
 
         return $this->access_token !== null;
     }
+    // /**
+    //  * @desc Pobierz token
+    //  *
+    //  * @return string
+    //  */
+    // public function getAccessToken($code){
+
+    //     return $this->doRequest('POST', $this->auth['oauth'], array(
+    //         'grant_type'    => 'authorization_code',
+    //         'code'          => $code,
+    //         'redirect_uri'  => $this->getURI(),
+    //     ), array('Authorization: Basic '.base64_encode($this->client_id.':'.$this->client_secret)));
+    // }
     /**
      * @desc Pobierz token
      *
@@ -271,17 +340,21 @@ class GGAPI
         return $user === null ? 'me' : 'user,'.$user;
     }
     /**
+     * @desc Pobierz identyfikator aplikacji
+     *
+     * @return string
+     */
+    protected function getApp(){
+
+        return 'client_id,'.$this->client_id;
+    }
+    /**
      * @desc Pobierz adres serwisu
      *
      * @return string
      */
-    protected function getURI(){
-        if(empty($_SERVER['REQUEST_URI'])) {
-            $requri = '/';
-        } else {
-            $requri = $_SERVER['REQUEST_URI'];
-        }
-        return (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 'https://': 'http://').$_SERVER['HTTP_HOST'] . $requri;
+    public function getURI(){
+        return (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on' ? 'https://': 'http://').$_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
     }
 
     /**
@@ -308,7 +381,7 @@ class GGAPI
     *
     * @return mixed     tablica elementów zwróconych przez API
     */
-    private function doRequest($method, $uri, $params = null, $headers = null, $ssl = false, $responseType = null){
+    protected function doRequest($method, $uri, $params = null, $headers = null, $ssl = false, $responseType = null){
 
         try{
             $resp = $this->ggApiRequest($method, $uri, $params, $headers, $ssl, $responseType);
@@ -324,7 +397,7 @@ class GGAPI
         if($resp !== false)
            return $resp;
 
-    	throw new GGAPIException($this->getRequestURL($method, $uri, $params, $ssl, $responseType).' '.$this->getLastError(), 408);
+        throw new GGAPIException($this->getRequestURL($method, $uri, $params, $ssl, $responseType).' '.$this->getLastError(), 408);
     }
     /**
     * @desc Zapytanie http do api
@@ -339,14 +412,19 @@ class GGAPI
     */
     private function ggApiRequest($method, $uri, $params = null, $headers = null, $ssl = false, $responseType = 'json'){
 
-    	$responseType = $responseType === null ? $this->responseType : $responseType;
-
-    	if(!in_array($method, array('GET','POST','PUT','DELETE')))
+        $responseType = $responseType === null ? $this->responseType : $responseType;
+        $add_headers = array();
+        $add_headers[] = 'Expect: ';
+        $add_headers[] = 'User-Agent: GGAPIPHP v'.self::VERSION.' '.php_uname('n');
+        $add_headers[] = 'Accept-Charset: ISO-8859-2,utf-8;q=0.7,*;q=0.7';
+        $headers = array_merge((array) $headers, $add_headers);
+        
+        if(!in_array($method, array('GET','POST','PUT','DELETE')))
             throw new GGAPIException('Nieprawidłowa metoda');
 
         $ch = curl_init();
         if(($method == 'POST' || $method == 'PUT')){
-            $simpleParams = http_build_query((array)$params, null);
+            $simpleParams = http_build_query((array)$params);
             curl_setopt($ch,CURLOPT_POSTFIELDS, !preg_match('/=%40/', $simpleParams) ? $simpleParams : $params);
         }
         if($method != 'POST') {
@@ -355,18 +433,11 @@ class GGAPI
 
         $requestUrl = $this->getRequestURL($method, $uri, $params, $ssl, $responseType);
         curl_setopt($ch,CURLOPT_URL, $requestUrl);
-        curl_setopt($ch,CURLOPT_HTTPHEADER, array_merge((array) $headers, array(
-                                                                            'Expect: ',
-                                                                            'User-Agent: GGAPIPHP v'.self::VERSION.' '.php_uname('n'),
-                                                                            'Accept-Charset: ISO-8859-2,utf-8;q=0.7,*;q=0.7'
-                                                                         )));
+        
+        curl_setopt($ch,CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch,CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch,CURLOPT_HEADER, true);
-        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-            curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, false);
-        } else {
-            curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, true);
-        }
+        curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch,CURLOPT_TIMEOUT, $this->requestTimeout);
         if(defined('CURLOPT_ENCODING'))
             curl_setopt($ch,CURLOPT_ENCODING, 'gzip');
@@ -380,8 +451,8 @@ class GGAPI
         if($this->response === false)
            return false;
 
-		$this->lastHeaders = $this->setLastHeaders(substr($this->response, 0, $this->info['header_size'] - 4));
-		$this->response    = substr($this->response, $this->info['header_size']);
+        $this->lastHeaders = $this->setLastHeaders(substr($this->response, 0, $this->info['header_size'] - 4));
+        $this->response    = substr($this->response, $this->info['header_size']);
 
         if($this->parseResponse === false)
             return true;
@@ -393,18 +464,18 @@ class GGAPI
                 $parsedResponse = array('result' => array('errorMsg' => is_array($this->lastHeaders) ? array_shift($this->lastHeaders) : $this->info['http_code']));
             }
             switch($this->info['http_code']){
-            	case 401:
-            	   throw new GGAPIUnauthorizedException($this->getErrorMsg($parsedResponse), $this->info['http_code']);
-            	case 403:
-            	   throw new GGAPIForbiddenException($this->getErrorMsg($parsedResponse), $this->info['http_code']);
-            	case 404:
-            	   throw new GGAPINotFoundException($this->getErrorMsg($parsedResponse), $this->info['http_code']);
-            	case 400:
+                case 401:
+                   throw new GGAPIUnauthorizedException($this->getErrorMsg($parsedResponse), $this->info['http_code']);
+                case 403:
+                   throw new GGAPIForbiddenException($this->getErrorMsg($parsedResponse), $this->info['http_code']);
+                case 404:
+                   throw new GGAPINotFoundException($this->getErrorMsg($parsedResponse), $this->info['http_code']);
+                case 400:
                    throw new GGAPIBadRequestException($this->getErrorMsg($parsedResponse), $this->info['http_code']);
-            	case 500:
+                case 500:
                    throw new GGAPIInternalServerErrorException($this->getErrorMsg($parsedResponse), $this->info['http_code']);
-            	default:
-            	    throw new GGAPIException($this->getErrorMsg($parsedResponse), $this->info['http_code']);
+                default:
+                    throw new GGAPIException($this->getErrorMsg($parsedResponse), $this->info['http_code']);
             }
         }else{
            $parsedResponse = $this->parseResponse($this->response, $this->info['content_type']);
@@ -446,20 +517,20 @@ class GGAPI
     */
     public function parseResponse($response, $type){
 
-    	switch($type){
-        	case 'text/xml':
-        		$parsedResponse = array('result' => $this->parseXML($response));
-        		break;
-        	case 'application/phps':
-        		$parsedResponse = @unserialize($response);
-        		if($parsedResponse === false)
-        			throw new GGAPIParseException();
-        		break;
-        	case 'application/json':
+        switch($type){
+            case 'text/xml':
+                $parsedResponse = array('result' => $this->parseXML($response));
+                break;
+            case 'application/phps':
+                $parsedResponse = @unserialize($response);
+                if($parsedResponse === false)
+                    throw new GGAPIParseException();
+                break;
+            case 'application/json':
             default:
                 $parsedResponse = $this->parseJSON($response);
                 if($parsedResponse === false)
-        			throw new GGAPIParseException();
+                    throw new GGAPIParseException();
                 break;
         }
 
@@ -472,7 +543,7 @@ class GGAPI
      */
     public function getRawResponse(){
 
-    	return $this->response;
+        return $this->response;
     }
     /**
      * Pobranie nagłówków ostatniego zapytania
@@ -481,7 +552,7 @@ class GGAPI
      */
     public function getResponseHeaders(){
 
-    	return $this->lastHeaders;
+        return $this->lastHeaders;
     }
     /**
      * Ustawienie typu odpowiedzi
@@ -491,7 +562,7 @@ class GGAPI
      */
     public function setResponseType($responseType){
 
-    	return $this->responseType = $responseType;
+        return $this->responseType = $responseType;
     }
     /**
      * @desc Czy analizować odpowiedź serwera
@@ -500,18 +571,18 @@ class GGAPI
      */
     public function setParseResponse($parseResponse){
 
-    	return $this->parseResponse = (bool) $parseResponse;
+        return $this->parseResponse = (bool) $parseResponse;
     }
-	/**
-	 * @desc Ustawienie nagłówków
-	 *
-	 * @param string $header
-	 * @return array
-	 */
+    /**
+     * @desc Ustawienie nagłówków
+     *
+     * @param string $header
+     * @return array
+     */
     private function setLastHeaders($header){
 
        return $this->lastHeaders = explode("\r\n", $header);
-	}
+    }
     /**
      * @desc Pobranie informacji o błędzie
      *

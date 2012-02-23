@@ -28,12 +28,16 @@ class GGAPI
     * @desc Wersja
     */
     const VERSION = '2.0';
-
+    /**
+    * @desc Zasoby autoryzacyjne
+    */
     protected $auth = array(
         'oauth'     => 'https://auth.api.gg.pl/token',
         'authorize' => 'https://login.gg.pl/authorize',
     );
-
+    /**
+    * @desc Zasoby użytkownika
+    */
     protected $scopes = array(
         'pubdir'  => 'https://pubdir.api.gg.pl',
         'users'   => 'https://users.api.gg.pl',
@@ -142,14 +146,19 @@ class GGAPI
      *
      * @return array
      */
-    public function sendNotification($message, $uri, $expiresAt = null){
+    public function sendNotification($message, $uri, $showOnTray = 1, $expiresAt = null, $subtype = null){
 
         $params = array(
             'body'          => $message,
             'uri'           => $uri,
-            'appFilter'     => 'notify',
-            'expiresAt'     => $expiresAt === null ? time() + 2592000 : $expiresAt,
+            'showOnTray'    => $showOnTray ? 1 : 0
         );
+        if($expiresAt){
+            $params['expiresAt'] = $expiresAt;
+        }
+        if($subtype){
+            $params['subtype'] = $subtype;
+        }
 
         return $this->doRequest('POST', $this->scopes['notify'].'/notifications', $params, array($this->getAuthHeader()));
     }
@@ -276,6 +285,22 @@ class GGAPI
         return $this;
     }
     /**
+     * @desc Pobierz token komunikacji
+     *
+     * @return GGAPI
+     */
+    public function getToken(){
+
+        if($this->hasToken()){
+            return array(
+                'access_token'  => $this->access_token,
+                'refresh_token' => $this->refresh_token,
+            );
+        }
+
+        return null;
+    }
+    /**
      * @desc Czy mamy token
      *
      * @return bool
@@ -284,19 +309,6 @@ class GGAPI
 
         return $this->access_token !== null;
     }
-    // /**
-    //  * @desc Pobierz token
-    //  *
-    //  * @return string
-    //  */
-    // public function getAccessToken($code){
-
-    //     return $this->doRequest('POST', $this->auth['oauth'], array(
-    //         'grant_type'    => 'authorization_code',
-    //         'code'          => $code,
-    //         'redirect_uri'  => $this->getURI(),
-    //     ), array('Authorization: Basic '.base64_encode($this->client_id.':'.$this->client_secret)));
-    // }
     /**
      * @desc Pobierz token
      *
@@ -305,12 +317,10 @@ class GGAPI
     public function getAccessToken($code){
 
         return $this->doRequest('POST', $this->auth['oauth'], array(
-            'code'          => $code,
             'grant_type'    => 'authorization_code',
-            'client_id'     => $this->client_id,
-            'client_secret' => $this->client_secret,
+            'code'          => $code,
             'redirect_uri'  => $this->getURI(),
-        ));
+        ), array('Authorization: Basic '.base64_encode($this->client_id.':'.$this->client_secret)));
     }
     /**
      * @desc Pobierz nowy token na podstawie starego
@@ -437,6 +447,11 @@ class GGAPI
         curl_setopt($ch,CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch,CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch,CURLOPT_HEADER, true);
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, false);
+        } else {
+            curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, true);
+        }
         curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch,CURLOPT_TIMEOUT, $this->requestTimeout);
         if(defined('CURLOPT_ENCODING'))

@@ -452,7 +452,6 @@ class GGAPI
         } else {
             curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, true);
         }
-        curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch,CURLOPT_TIMEOUT, $this->requestTimeout);
         if(defined('CURLOPT_ENCODING'))
             curl_setopt($ch,CURLOPT_ENCODING, 'gzip');

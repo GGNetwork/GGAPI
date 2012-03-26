@@ -189,7 +189,7 @@ class GGAPI
            $params['ip'] = $ip; 
         }
         
-        return $this->doRequest('GET', $this->scopes['geo'].'/'.$this->getUser($user).'/location', $params, array($this->getAuthHeader()));
+        return $this->doRequest('GET', $this->scopes['geo'].'/userLocation/'.$this->getUser($user), $params, array($this->getAuthHeader()));
     }
     /**
      * @desc Zapisz klucz w bazie aplikacji
@@ -203,7 +203,7 @@ class GGAPI
             'value'         => json_encode($value),
         );
 
-        return $this->doRequest('POST', $this->scopes['storage'].'/'.$this->getApp().'/'.$this->getUser($user).'/'.$key, $params, array($this->getAuthHeader()));
+        return $this->doRequest('POST', $this->scopes['storage'].'/userStorage/'.$this->getApp().'/'.$this->getUser($user).'/'.$key, $params, array($this->getAuthHeader()));
     }   
 
     /**
@@ -213,7 +213,7 @@ class GGAPI
      */
     public function getUserValue($user, $key){
 
-        return $this->doRequest('GET', $this->scopes['storage'].'/'.$this->getApp().'/'.$this->getUser($user).'/'.$key, null, array($this->getAuthHeader()));
+        return $this->doRequest('GET', $this->scopes['storage'].'/userStorage/'.$this->getApp().'/'.$this->getUser($user).'/'.$key, null, array($this->getAuthHeader()));
     }
     /**
      * @desc Skasuj klucz z bazy aplikacji
@@ -222,7 +222,7 @@ class GGAPI
      */
     public function deleteUserValue($user, $key){
 
-        return $this->doRequest('DELETE', $this->scopes['storage'].'/'.$this->getApp().'/'.$this->getUser($user).'/'.$key, null, array($this->getAuthHeader()));
+        return $this->doRequest('DELETE', $this->scopes['storage'].'/userStorage/'.$this->getApp().'/'.$this->getUser($user).'/'.$key, null, array($this->getAuthHeader()));
     }
 
 

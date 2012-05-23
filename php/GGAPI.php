@@ -104,19 +104,17 @@ class GGAPI
      *
      * @return void
      */
-    public function initSession($sessionId = null){
+    public function initSession($sessionId = null) {
 
         if($sessionId !== null){
             session_id($sessionId);
         }
-        elseif(isset($_GET['gg_session_id'])){
-            session_id($_GET['gg_session_id']);
-        }
         session_start();
 
-        if(isset($_GET['code']) && !isset($_SESSION['token_data'])){
+        if(isset($_GET['code']) && $_GET['code'] !== $_SESSION['code']){
            $token_data = $this->getAccessToken($_GET['code']);
            $_SESSION['token_data'] = $token_data;
+           $_SESSION['code'] = $_GET['code'];
         }
 
         if(isset($_SESSION['token_data'])){
@@ -186,9 +184,9 @@ class GGAPI
 
         $params = array();
         if($ip){
-           $params['ip'] = $ip; 
+           $params['ip'] = $ip;
         }
-        
+
         return $this->doRequest('GET', $this->scopes['geo'].'/userLocation/'.$this->getUser($user), $params, array($this->getAuthHeader()));
     }
     /**
@@ -197,14 +195,14 @@ class GGAPI
      * @return array
      */
     public function setUserValue($user, $key, $value, $contentType = 'application/json'){
-        
+
         $params = array(
             'content_type'  => $contentType,
             'value'         => json_encode($value),
         );
 
         return $this->doRequest('POST', $this->scopes['storage'].'/userStorage/'.$this->getApp().'/'.$this->getUser($user).'/'.$key, $params, array($this->getAuthHeader()));
-    }   
+    }
 
     /**
      * @desc Pobierz klucz z bazy aplikacji
@@ -259,12 +257,14 @@ class GGAPI
         if(count($diff)){
             throw new GGAPIException('Incorrect scope: '.join(' ', $diff));
         }
-        
+        if($uri == null){
+           $uri = $this->getURI();
+        }
         $params = array(
             'response_type' => 'code',
             'client_id'     => $this->client_id,
             'scope'         => join(' ', $scopes),
-            'redirect_uri'  => $uri == null ? $this->getURI() : $uri
+            'redirect_uri'  => $uri,
         );
 
         $url = $this->auth['authorize'].'?'.http_build_query($params);
@@ -307,7 +307,7 @@ class GGAPI
      */
     public function hasToken(){
 
-        return $this->access_token !== null;
+        return $this->access_token !== null && $this->refresh_token !== null;
     }
     /**
      * @desc Pobierz token
@@ -428,7 +428,7 @@ class GGAPI
         $add_headers[] = 'User-Agent: GGAPIPHP v'.self::VERSION.' '.php_uname('n');
         $add_headers[] = 'Accept-Charset: ISO-8859-2,utf-8;q=0.7,*;q=0.7';
         $headers = array_merge((array) $headers, $add_headers);
-        
+
         if(!in_array($method, array('GET','POST','PUT','DELETE')))
             throw new GGAPIException('Nieprawidłowa metoda');
 
@@ -443,7 +443,7 @@ class GGAPI
 
         $requestUrl = $this->getRequestURL($method, $uri, $params, $ssl, $responseType);
         curl_setopt($ch,CURLOPT_URL, $requestUrl);
-        
+
         curl_setopt($ch,CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch,CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch,CURLOPT_HEADER, true);

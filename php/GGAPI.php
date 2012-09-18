@@ -88,6 +88,10 @@ class GGAPI
      * @desc Dane do odnowienia tokenu użytkownika
      */
     private $refresh_token = null;
+     /**
+     * @desc Flaga blokujaca wysylanie requestow przy braku code i sesji
+     */
+    private $do_requests = true;
     /**
      * @desc Inicjalizacja
      *
@@ -116,6 +120,8 @@ class GGAPI
            $_SESSION['token_data'] = $token_data;
            $_SESSION['code'] = $_GET['code'];
         }
+
+        $this->do_requests = false;
 
         if(isset($_SESSION['token_data'])){
            $this->setToken($_SESSION['token_data']['access_token'], $_SESSION['token_data']['refresh_token']);
@@ -281,6 +287,7 @@ class GGAPI
 
         $this->access_token  = $access_token;
         $this->refresh_token = $refresh_token;
+        $this->do_requests   = true;
 
         return $this;
     }
@@ -421,6 +428,10 @@ class GGAPI
     * @return mixed     tablica elementów zwróconych przez API
     */
     private function ggApiRequest($method, $uri, $params = null, $headers = null, $ssl = false, $responseType = 'json'){
+
+        if (!$this->do_requests) {
+            return;
+        }
 
         $responseType = $responseType === null ? $this->responseType : $responseType;
         $add_headers = array();
